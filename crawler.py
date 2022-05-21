@@ -1,4 +1,5 @@
 from urllib.parse import unquote
+from rdflib.namespace import XSD
 import requests
 import lxml.html
 import logging
@@ -23,6 +24,7 @@ WHERE_BORN = 'where_born'
 PRESIDENT_KEYS = [NAME, WHEN_BORN, WHERE_BORN]
 
 
+
 def get_url(suffix):
     return f"{WIKI_PREFIX}{suffix}"
 
@@ -41,6 +43,15 @@ def get_entity(suffix):
 
 g = rdflib.Graph()
 
+population_url = get_url("/wiki/Population")
+capital_city_url = get_url("/wiki/Capital_city")
+government_form_url = get_url("/wiki/Government")
+area_url = get_url("/wiki/Area")
+president_url = get_url("/wiki/President_(government_title)")
+prime_minister_url = get_url("/wiki/Prime_minister")
+place_of_birth_url = get_url("/wiki/Place_of_birth")
+date_of_birth_url = get_url("/wiki/Birthday")
+
 population_rel = get_entity("/wiki/Population")
 capital_city = get_entity("/wiki/Capital_city")
 government_form = get_entity("/wiki/Government")
@@ -50,7 +61,7 @@ prime_minister_rel = get_entity("/wiki/Prime_minister")
 place_of_birth = get_entity("/wiki/Place_of_birth")
 date_of_birth = get_entity("/wiki/Birthday")
 
-COUNTRIES_TO_CRAWL = 4
+COUNTRIES_TO_CRAWL = 1
 
 
 def index(countries):
@@ -64,12 +75,18 @@ def index(countries):
             for government in country[GOVERNMENT]:
                 government_entity = get_entity(government)
                 g.add((government_entity, government_form, country_entity))
-        # if AREA in country.keys():
-        #     area_entity = rdflib.term.Node(country[AREA]) #TODO fake a url
-        #     g.add((area_entity, area_rel, country_entity))
-        # if POPULATION in country.keys():
-        #     population_entity = rdflib.term.Node(country[POPULATION])
-        #     g.add((population_entity, population_rel, country_entity))
+        if AREA in country.keys():
+            a = re.match("[1-9,]+", country[AREA])
+            if a:
+                area = "/wiki/{area}".format(area=a.group(0))
+                area_entity = get_entity(area)
+                g.add((area_entity, area_rel, country_entity))
+        if POPULATION in country.keys():
+            a = re.match("[1-9,]+", country[POPULATION])
+            if a:
+                population = "/wiki/{area}".format(area=a.group(0))
+                population_entity = get_entity(population)
+                g.add((population_entity, population_rel, country_entity))
         if PRESIDENT in country.keys():
             president = country[PRESIDENT]
             if NAME in president.keys():
