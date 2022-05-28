@@ -7,7 +7,6 @@ import json
 import re
 import rdflib
 
-
 logging.basicConfig(level=logging.ERROR)
 
 WIKI_PREFIX = "http://en.wikipedia.org"
@@ -17,16 +16,17 @@ GOVERNMENT = 'government'
 AREA = 'area'
 POPULATION = 'population'
 PRESIDENT = 'president'
-COUNTRY_KEYS = [CAPITAL, GOVERNMENT, AREA, POPULATION, PRESIDENT]
+PRIME_MINISTER = 'prime_minister'
+COUNTRY_KEYS = [CAPITAL, GOVERNMENT, AREA, POPULATION, PRESIDENT, PRIME_MINISTER]
 NAME = 'name'
 WHEN_BORN = 'when_born'
 WHERE_BORN = 'where_born'
 PRESIDENT_KEYS = [NAME, WHEN_BORN, WHERE_BORN]
-
+PRIME_MINISTER_KEYS = [NAME, WHEN_BORN, WHERE_BORN]
 
 
 def get_url(suffix):
-    return f"{WIKI_PREFIX}{suffix}"
+    return f"{WIKI_PREFIX}{suffix}".replace(" ", "_")
 
 
 def unquote_u(source):
@@ -47,7 +47,7 @@ population_url = get_url("/wiki/Population")
 capital_city_url = get_url("/wiki/Capital_city")
 government_form_url = get_url("/wiki/Government")
 area_url = get_url("/wiki/Area")
-president_url = get_url("/wiki/President_(government_title)")
+president_url = get_url("/wiki/President")
 prime_minister_url = get_url("/wiki/Prime_minister")
 place_of_birth_url = get_url("/wiki/Place_of_birth")
 date_of_birth_url = get_url("/wiki/Birthday")
@@ -56,13 +56,10 @@ population_rel = get_entity("/wiki/Population")
 capital_city = get_entity("/wiki/Capital_city")
 government_form = get_entity("/wiki/Government")
 area_rel = get_entity("/wiki/Area")
-president_rel = get_entity("/wiki/President_(government_title)")
+president_rel = get_entity("/wiki/President")
 prime_minister_rel = get_entity("/wiki/Prime_minister")
 place_of_birth = get_entity("/wiki/Place_of_birth")
 date_of_birth = get_entity("/wiki/Birthday")
-
-COUNTRIES_TO_CRAWL = 1
-
 
 def index(countries):
     for country in countries:
@@ -76,17 +73,11 @@ def index(countries):
                 government_entity = get_entity(government)
                 g.add((government_entity, government_form, country_entity))
         if AREA in country.keys():
-            a = re.match("[1-9,]+", country[AREA])
-            if a:
-                area = "/wiki/{area}".format(area=a.group(0))
-                area_entity = get_entity(area)
-                g.add((area_entity, area_rel, country_entity))
+            area_entity = get_entity(country[AREA])
+            g.add((area_entity, area_rel, country_entity))
         if POPULATION in country.keys():
-            a = re.match("[1-9,]+", country[POPULATION])
-            if a:
-                population = "/wiki/{area}".format(area=a.group(0))
-                population_entity = get_entity(population)
-                g.add((population_entity, population_rel, country_entity))
+            population_entity = get_entity(country[POPULATION])
+            g.add((population_entity, population_rel, country_entity))
         if PRESIDENT in country.keys():
             president = country[PRESIDENT]
             if NAME in president.keys():
@@ -98,19 +89,25 @@ def index(countries):
                 if WHERE_BORN in president.keys():
                     where_born_entity = get_entity(president[WHERE_BORN])
                     g.add((where_born_entity, place_of_birth, president_entity))
-
+        if PRIME_MINISTER in country.keys():
+            prime_minister = country[PRIME_MINISTER]
+            if NAME in prime_minister.keys():
+                prime_minister_entity = get_entity(prime_minister[NAME])
+                g.add((prime_minister_entity, prime_minister_rel, country_entity))
+                if WHEN_BORN in prime_minister.keys():
+                    when_born_entity = get_entity(prime_minister[WHEN_BORN])
+                    g.add((when_born_entity, date_of_birth, prime_minister_entity))
+                if WHERE_BORN in prime_minister.keys():
+                    where_born_entity = get_entity(prime_minister[WHERE_BORN])
+                    g.add((where_born_entity, place_of_birth, prime_minister_entity))
     g.serialize("graph.nt", format="nt")
 
 
 def crawl():
     countries = get_countries()
-    i = 0
     for country in countries:
         crawl_country(country)
         check_country(country)
-        i += 1
-        if i > COUNTRIES_TO_CRAWL:
-            break
     print(json.dumps(countries, indent=4))
     return countries
 
@@ -118,7 +115,7 @@ def crawl():
 def check_country(country):
     for key in COUNTRY_KEYS:
         if key not in country.keys():
-            logging.error(f"{key} is not a key")
+            logging.error(f"{key} is not a key in {country[NAME]}")
             continue
         if country[key] is None:
             logging.error("country[key] is None")
@@ -127,12 +124,27 @@ def check_country(country):
 def crawl_country(country):
     res = requests.get(get_url(country['name']))
     doc = lxml.html.fromstring(res.content)
-    infobox = doc.xpath("//table[contains(@class,'infobox')]")[0]
+    infobox = doc.xpath("//table[contains(@class,'infobox')]")
+    if len(infobox) < 1:
+        logging.error(f"didn't find infobox for {country[NAME]}")
+        return country
+    infobox = infobox[0]
     country[CAPITAL] = get_country_capital(infobox)
     country[GOVERNMENT] = get_country_government(infobox)
-    country[AREA] = get_country_area(infobox)
-    country[POPULATION] = get_country_population(infobox)
+
+    area = get_country_area(infobox)
+    a = re.match("[0-9,]+", area)
+    if a:
+        txt = a.group(0).replace('.', ',') + " km squared"
+        area = "/wiki/{area}".format(area=txt).replace(" ", "_")
+        country[AREA] = area
+
+    population = get_country_population(infobox)
+    population = population.replace(".", ",")
+    country[POPULATION] = "/wiki/{population}".format(population=population).replace(" ", "_")
+
     country[PRESIDENT] = get_country_president(infobox)
+    country[PRIME_MINISTER] = get_country_prime_minister(infobox)
 
 
 def get_country_capital(infobox):
@@ -168,7 +180,8 @@ def get_country_area(infobox):
 
 def get_country_population(infobox):
     res = ""
-    text = infobox.xpath("//table//tr//a[contains(text(),'Population')]/ancestor::tr/following-sibling::tr[1]/td/text()")
+    text = infobox.xpath(
+        "//table//tr//a[contains(text(),'Population')]/ancestor::tr/following-sibling::tr[1]/td/text()")
     string = align_string(''.join(text))
     match = re.search('(\\d{1,3}(,\\d{3})+)', string)
     if match:
@@ -193,7 +206,7 @@ def get_country_population(infobox):
 
 def get_country_president(infobox):
     president = {}
-    text = infobox.xpath("//table//tr//a[contains(.,'President')]/ancestor::th/following-sibling::td[1]/a/@href")
+    text = infobox.xpath("//table//tr//a[. = 'President']/ancestor::th/following-sibling::td[1]/a/@href")
     if len(text) > 0:
         president[NAME] = text[0]
     if NAME not in president.keys():
@@ -210,21 +223,47 @@ def crawl_president(president):
     president[WHERE_BORN] = get_where_born(infobox)
 
 
-def get_when_born(infobox):
-    text = infobox.xpath("//table//tr[contains(.,'Born')]//span[contains(@class,'bday')]/text()")
-    date = ""
+def get_country_prime_minister(infobox):
+    prime_minister = {}
+    text = infobox.xpath("//table//tr//a[contains(.,'Prime Minister')]/ancestor::th/following-sibling::td[1]/a/@href")
     if len(text) > 0:
-        # date returned will be a datetime.datetime object. here we are only using the first match.
-        return text[0]
-    return date
+        prime_minister[NAME] = text[0]
+    if NAME not in prime_minister.keys():
+        logging.error('not found prime minister')
+        return prime_minister
+    crawl_prime_minister(prime_minister)
+    return prime_minister
+
+
+def crawl_prime_minister(prime_minister):
+    doc = get_html(prime_minister[NAME])
+    infobox = doc.xpath("//table[contains(@class,'infobox')]")
+    if len(infobox) > 0:
+        infobox = infobox[0]
+        prime_minister[WHEN_BORN] = get_when_born(infobox)
+        prime_minister[WHERE_BORN] = get_where_born(infobox)
+    else:
+        logging.error("didn't find infobox for prime minister", prime_minister[NAME])
+
+
+def get_when_born(infobox):
+    def wb(infobox):
+        text = infobox.xpath("//table//tr[contains(.,'Born')]//span[contains(@class,'bday')]/text()")
+        date = ""
+        if len(text) > 0:
+            # date returned will be a datetime.datetime object. here we are only using the first match.
+            return text[0]
+        return date
+    data = wb(infobox)
+    return "/wiki/{data}".format(data=data).replace(" ", "_")
 
 
 def get_where_born(infobox):
     text = infobox.xpath("//table//tr[contains(.,'Born')]//a[contains(@href,'wiki')]/@href")
     place = ""
     if 0 < len(text) < 10:
-        return text[len(text)-1]
-    if len(text) > 0: #TODO handle
+        return text[len(text) - 1]
+    if len(text) > 0:  # TODO handle
         return text[0]
     return place
 
