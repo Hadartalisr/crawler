@@ -1,4 +1,5 @@
 from urllib.parse import unquote
+from urllib.parse import quote
 from rdflib.namespace import XSD
 import requests
 import lxml.html
@@ -34,6 +35,9 @@ def unquote_u(source):
     if '%u' in result:
         result = result.replace('%u', '\\u').decode('unicode_escape')
     result = unquote(result)
+    if '/' in result:
+        i = result.rindex('/')
+        result = result[:i]+quote(result[i:])
     return result
 
 
@@ -133,7 +137,7 @@ def crawl_country(country):
     country[GOVERNMENT] = get_country_government(infobox)
 
     area = get_country_area(infobox)
-    a = re.match("[0-9,]+", area)
+    a = re.match("[0-9,.]+", area)
     if a:
         txt = a.group(0).replace('.', ',') + " km squared"
         area = "/wiki/{area}".format(area=txt).replace(" ", "_")
@@ -148,11 +152,11 @@ def crawl_country(country):
 
 
 def get_country_capital(infobox):
-    return infobox.xpath("//table//tr[.//th/text()='Capital']/td/a[@title]/@href")
+    return infobox.xpath("(((//table)[contains(@class, 'infobox')]//tr)[.//th/text()='Capital']/td[1]//a)[@title][not(contains(@title, 'Geographic coordinate system'))]/@href")
 
 
 def get_country_government(infobox):
-    return infobox.xpath("//table//tr[.//a/text()='Government']/td/a[@title]/@href")
+    return infobox.xpath("(((//table)[contains(@class, 'infobox')]//tr)[.//a/text()='Government']/td[1]//a)[@title]/@href")
 
 
 def get_country_area(infobox):
@@ -206,7 +210,7 @@ def get_country_population(infobox):
 
 def get_country_president(infobox):
     president = {}
-    text = infobox.xpath("//table//tr//a[. = 'President']/ancestor::th/following-sibling::td[1]/a/@href")
+    text = infobox.xpath("//table//tr//a[. = 'President']/ancestor::th/following-sibling::td[1]//a/@href")
     if len(text) > 0:
         president[NAME] = text[0]
     if NAME not in president.keys():

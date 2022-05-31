@@ -3,7 +3,8 @@ import crawler
 import re
 import pandas as pd
 import openpyxl
-
+from urllib.parse import unquote
+from urllib.parse import quote
 
 def get_entity_url(entity: str):
     entity = entity.replace(" ", "_")
@@ -58,6 +59,8 @@ def get_q5(country_name):
 # What is the capital of <country>?
 def get_q6(country_name):
     country = get_entity_url(country_name)
+    i = country.rindex('/')
+    country = country[:i]+quote(country[i:])
     q1 = "select ?p where {{" \
          " ?p <{rel}> <{entity}> ." \
          "}}".format(rel=crawler.capital_city_url, entity=country)
@@ -140,7 +143,7 @@ def get_q12(government_form_a: str, government_form_b: str):
 def get_q13(substr):
     q1 = "select ?country where {{" \
          " ?capital <{relA}> ?country " \
-         " filter( regex(str(?capital), \"{str}\")) " \
+         " filter( regex(lcase(str(?capital)), \"{str}\")) " \
          "}}".format(relA=crawler.capital_city, str=substr)
     return q1
 
@@ -170,7 +173,7 @@ def handle_basic_question(query):
     arr = []
     for result in res:
         str = result[0].n3()
-        arr.append(extract_result(str))
+        arr.append(unquote(extract_result(str)))
     return arr
 
 
@@ -210,7 +213,7 @@ def get_question(user_question):
         query = get_q5(country_name)
         return handle_basic_question(query)
 
-    regex_6 = "What is the capital of ([a-z A-z]+)?"
+    regex_6 = "What is the capital of ([a-z A-z,]+)?"
     m = re.match(regex_6, user_question)
     if m:
         country_name = m.group(1)
@@ -328,8 +331,8 @@ def test():
 
 main()
 
-# g1 = rdflib.Graph()
-# g1.parse("graph.nt", format="nt")
+g1 = rdflib.Graph()
+g1.parse("graph.nt", format="nt")
 #
 # x1 = g1.query(q1)
 # for result in x1:
