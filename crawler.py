@@ -104,7 +104,7 @@ def index(countries):
                 if WHERE_BORN in prime_minister.keys():
                     where_born_entity = get_entity(prime_minister[WHERE_BORN])
                     g.add((where_born_entity, place_of_birth, prime_minister_entity))
-    g.serialize("graph.nt", format="nt")
+    g.serialize("ontology.nt", format="nt")
 
 
 def crawl():
@@ -112,7 +112,6 @@ def crawl():
     for country in countries:
         crawl_country(country)
         check_country(country)
-    print(json.dumps(countries, indent=4))
     return countries
 
 
@@ -152,30 +151,30 @@ def crawl_country(country):
 
 
 def get_country_capital(infobox):
-    return infobox.xpath("(((//table)[contains(@class, 'infobox')]//tr)[.//th/text()='Capital']/td[1]//a)[@title][not(contains(@title, 'Geographic coordinate system'))]/@href")
+    return infobox.xpath("(((//table)[contains(@class, 'infobox')]//tr)[.//text()='Capital']/td[1]//a)[@title][not(contains(@title, 'Geographic coordinate system'))]/@href")
 
 
 def get_country_government(infobox):
-    return infobox.xpath("(((//table)[contains(@class, 'infobox')]//tr)[.//a/text()='Government']/td[1]//a)[@title]/@href")
+    return infobox.xpath("(((//table)[contains(@class, 'infobox')]//tr)[.//text()='Government']/td[1]//a)[@title]/@href")
 
 
 def get_country_area(infobox):
     res = ""
     text = infobox.xpath("//table//tr[contains(th,'Total')]/td[contains(text(),'km')]/text()")
     string = align_string(''.join(text))
-    match = re.search('([0-9,]+[^0-9]*km)', string)
+    match = re.search('([0-9,.]+[^0-9]*km)', string)
     if match:
         res = match.group(0)
         return res
     text = infobox.xpath("//table//tr[contains(th,'Total')]/td/text()")
     string = align_string(''.join(text))
-    match = re.search('([0-9,]+[^0-9]*km)', string)
+    match = re.search('([0-9,.]+[^0-9]*km)', string)
     if match:
         res = match.group(0)
         return res
     text = infobox.xpath("//table//tr[contains(th,'Land')]/td/text()")
     string = align_string(''.join(text))
-    match = re.search('([0-9,]+[^0-9]*km)', string)
+    match = re.search('([0-9,.]+[^0-9]*km)', string)
     if match:
         res = match.group(0)
         return res
@@ -263,12 +262,21 @@ def get_when_born(infobox):
 
 
 def get_where_born(infobox):
-    text = infobox.xpath("//table//tr[contains(.,'Born')]//a[contains(@href,'wiki')]/@href")
+    all_countries = get_countries()
+    td_links = infobox.xpath("(((//table)[contains(@class, 'infobox')]//tr)[contains(.,'Born')])//a[contains(@href,'wiki')]")
+    td_text = infobox.xpath("(((//table)[contains(@class, 'infobox')]//tr)[contains(.,'Born')])/td/text()")
     place = ""
-    if 0 < len(text) < 10:
-        return text[len(text) - 1]
-    if len(text) > 0:  # TODO handle
-        return text[0]
+    for i in td_links:
+        link = i.attrib.get('href')
+        for country in all_countries:
+            if country['name'] == link:
+                return link
+    for text in td_text:
+        if text.startswith(', ') and len(text) > 2:
+            text = text[2:]
+        for country in all_countries:
+            if country['name'][6:] == text:
+                return country['name']
     return place
 
 
@@ -294,8 +302,8 @@ def get_html(suffix):
     return doc
 
 
-countries = crawl()
-index(countries)
+#countries = crawl()
+#index(countries)
 
 # country = {'name': '/wiki/Russia'}
 # crawl_country(country)

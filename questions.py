@@ -6,14 +6,22 @@ import openpyxl
 from urllib.parse import unquote
 from urllib.parse import quote
 
+
 def get_entity_url(entity: str):
     entity = entity.replace(" ", "_")
     return "http://en.wikipedia.org/wiki/{entity}".format(entity=entity)
 
 
+def quote_suffix(str):
+    if '/' in str:
+        i = str.rindex('/')
+        return str[:i] + quote(str[i:])
+    return str
+
+
 # Who is the president of <country>?
 def get_q1(country_name):
-    country = get_entity_url(country_name)
+    country = quote_suffix(get_entity_url(country_name))
     q1 = "select ?p where {{" \
          " ?p <{rel}> <{entity}> ." \
          "}}".format(rel=crawler.president_url, entity=country)
@@ -22,7 +30,7 @@ def get_q1(country_name):
 
 # Who is the prime minister of <country>?
 def get_q2(country_name):
-    country = get_entity_url(country_name)
+    country = quote_suffix(get_entity_url(country_name))
     q1 = "select ?p where {{" \
          " ?p <{rel}> <{entity}> ." \
          "}}".format(rel=crawler.prime_minister_url, entity=country)
@@ -31,7 +39,7 @@ def get_q2(country_name):
 
 # What is the population of <country>?
 def get_q3(country_name):
-    country = get_entity_url(country_name)
+    country = quote_suffix(get_entity_url(country_name))
     q1 = "select ?p where {{" \
          " ?p <{rel}> <{entity}> ." \
          "}}".format(rel=crawler.population_url, entity=country)
@@ -40,7 +48,7 @@ def get_q3(country_name):
 
 # What is the area of <country>?
 def get_q4(country_name):
-    country = get_entity_url(country_name)
+    country = quote_suffix(get_entity_url(country_name))
     q1 = "select ?p where {{" \
          " ?p <{rel}> <{entity}> ." \
          "}}".format(rel=crawler.area_url, entity=country)
@@ -49,7 +57,7 @@ def get_q4(country_name):
 
 # What is the form of government in <country>?
 def get_q5(country_name):
-    country = get_entity_url(country_name)
+    country = quote_suffix(get_entity_url(country_name))
     q1 = "select ?p where {{" \
          " ?p <{rel}> <{entity}> ." \
          "}}".format(rel=crawler.government_form_url, entity=country)
@@ -58,9 +66,7 @@ def get_q5(country_name):
 
 # What is the capital of <country>?
 def get_q6(country_name):
-    country = get_entity_url(country_name)
-    i = country.rindex('/')
-    country = country[:i]+quote(country[i:])
+    country = quote_suffix(get_entity_url(country_name))
     q1 = "select ?p where {{" \
          " ?p <{rel}> <{entity}> ." \
          "}}".format(rel=crawler.capital_city_url, entity=country)
@@ -69,7 +75,7 @@ def get_q6(country_name):
 
 # When was the president of <country> born?
 def get_q7(country_name):
-    country = get_entity_url(country_name)
+    country = quote_suffix(get_entity_url(country_name))
     q1 = "select ?w where {{" \
          " ?p <{relA}> <{entity}> ." \
          " ?w <{relB}> ?p ." \
@@ -79,7 +85,7 @@ def get_q7(country_name):
 
 # Where was the president of <country> born?
 def get_q8(country_name):
-    country = get_entity_url(country_name)
+    country = quote_suffix(get_entity_url(country_name))
     q1 = "select ?w where {{" \
          " ?p <{relA}> <{entity}> ." \
          " ?w <{relB}> ?p ." \
@@ -89,7 +95,7 @@ def get_q8(country_name):
 
 # When was the prime minister of <country> born?
 def get_q9(country_name):
-    country = get_entity_url(country_name)
+    country = quote_suffix(get_entity_url(country_name))
     q1 = "select ?w where {{" \
          " ?p <{relA}> <{entity}> ." \
          " ?w <{relB}> ?p ." \
@@ -99,7 +105,7 @@ def get_q9(country_name):
 
 # Where was the prime minister of <country> born?
 def get_q10(country_name):
-    country = get_entity_url(country_name)
+    country = quote_suffix(get_entity_url(country_name))
     q1 = "select ?w where {{" \
          " ?p <{relA}> <{entity}> ." \
          " ?w <{relB}> ?p ." \
@@ -110,7 +116,7 @@ def get_q10(country_name):
 # Who is <entity>?
 def who_is(person_name):
     g1 = rdflib.Graph()
-    g1.parse("graph.nt", format="nt")
+    g1.parse("ontology.nt", format="nt")
     person = get_entity_url(person_name)
     query = "select ?r ?c where {{" \
             " <{person}> ?r ?c ." \
@@ -127,9 +133,9 @@ def who_is(person_name):
 # How many <government_form1> are also <government_form2>?
 def get_q12(government_form_a: str, government_form_b: str):
     g1 = rdflib.Graph()
-    g1.parse("graph.nt", format="nt")
-    government_form_a = get_entity_url(government_form_a.capitalize())
-    government_form_b = get_entity_url(government_form_b.capitalize())
+    g1.parse("ontology.nt", format="nt")
+    government_form_a = quote_suffix(get_entity_url(government_form_a.capitalize()))
+    government_form_b = quote_suffix(get_entity_url(government_form_b.capitalize()))
     q1 = "select (count(distinct ?c) as ?count) where {{" \
          " <{entityA}> <{rel}> ?c ." \
          " <{entityB}> <{rel}> ?c ." \
@@ -151,8 +157,8 @@ def get_q13(substr):
 # How many presidents were born in <country>?
 def get_q14(country):
     g1 = rdflib.Graph()
-    g1.parse("graph.nt", format="nt")
-    country_entity = get_entity_url(country)
+    g1.parse("ontology.nt", format="nt")
+    country_entity = quote_suffix(get_entity_url(country))
     q1 = "select (count(distinct ?president) as ?count) where {{" \
          " <{entityA}> <{rel}> ?president ." \
          " ?president <{relB}> ?any ." \
@@ -162,13 +168,27 @@ def get_q14(country):
         return [result.asdict()['count'].toPython()]
 
 
+# How many presidents or prime ministers were born at <date>?
+def get_q15(date):
+    g1 = rdflib.Graph()
+    g1.parse("ontology.nt", format="nt")
+    birth_date = quote_suffix(get_entity_url(date))
+    q1 = "select (count(distinct ?president) as ?count) where {{" \
+         " <{date}> <{rel}> ?president ." \
+         "}}".format(rel=crawler.date_of_birth, date=birth_date)
+    res = g1.query(q1)
+    for result in res:
+        return [result.asdict()['count'].toPython()]
+
+
+
 def extract_result(str):
     return str.replace("<http://en.wikipedia.org/wiki/", "").replace("_", " ").replace(">", "")
 
 
 def handle_basic_question(query):
     g1 = rdflib.Graph()
-    g1.parse("graph.nt", format="nt")
+    g1.parse("ontology.nt", format="nt")
     res = g1.query(query)
     arr = []
     for result in res:
@@ -268,12 +288,30 @@ def get_question(user_question):
         query = get_q13(str)
         return handle_basic_question(query)
 
-
-    regex_14 = "Where was the president of ([a-z A-z]+) born?"
+    regex_14 = "How many presidents were born in ([a-z A-z,]+)?"
     m = re.match(regex_14, user_question)
     if m:
         country = m.group(1)
         return get_q14(country)
+
+    regex_15 = "How many presidents or prime ministers were born at ([0-9-]+)?"
+    m = re.match(regex_15, user_question)
+    if m:
+        date = m.group(1)
+        return get_q15(date)
+
+
+def answer_question(user_question):
+    answers = sorted(get_question(user_question))
+    final_answer = ""
+    for answer in answers:
+        if answer != answers[0]:
+            final_answer += ", "
+        final_answer += str(answer)
+    return final_answer
+
+
+
 
 
 simple_questions = [
@@ -287,6 +325,7 @@ simple_questions = [
     "Where was the president of <country> born?",
     "When was the prime minister of <country> born?",
     "Where was the prime minister of <country> born?",
+    "How many presidents were born in <country>?",
 ]
 
 other_questions = [
@@ -326,13 +365,14 @@ def test():
     for index, row in df.iterrows():
         q = row['q']
         a = row['a']
-        our_answer = get_question(q)
-        print(f"{q} \n real answer: {a}\n our answer: {our_answer}")
+        our_answer = answer_question(q)
+
+        print(f"{q} \n real answer: {a}\n our answer : {our_answer}")
 
 main()
 
-g1 = rdflib.Graph()
-g1.parse("graph.nt", format="nt")
+#g1 = rdflib.Graph()
+#g1.parse("ontology.nt", format="nt")
 #
 # x1 = g1.query(q1)
 # for result in x1:
